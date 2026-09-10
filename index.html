@@ -24,49 +24,13 @@
       font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
       transition: opacity 0.35s ease;
     }
-    #splash .splash-icon {
-      font-size: 46px;
-      line-height: 1;
-      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
-    }
-    #splash .splash-title {
-      color: #F1EFE9;
-      font-weight: 800;
-      font-size: 20px;
-      letter-spacing: 0.2px;
-    }
-    #splash .splash-sub {
-      color: #B8622E;
-      font-weight: 600;
-      font-size: 12px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-    }
-    #splash .splash-bar {
-      margin-top: 6px;
-      width: 120px;
-      height: 3px;
-      border-radius: 99px;
-      background: rgba(255,255,255,0.12);
-      overflow: hidden;
-    }
-    #splash .splash-bar::after {
-      content: "";
-      display: block;
-      width: 40%;
-      height: 100%;
-      border-radius: 99px;
-      background: #B8622E;
-      animation: splashSlide 1.1s ease-in-out infinite;
-    }
-    @keyframes splashSlide {
-      0%   { transform: translateX(-100%); }
-      100% { transform: translateX(350%); }
-    }
-    #splash.splash-hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
+    #splash .splash-icon { font-size: 46px; line-height: 1; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35)); }
+    #splash .splash-title { color: #F1EFE9; font-weight: 800; font-size: 20px; letter-spacing: 0.2px; }
+    #splash .splash-sub { color: #B8622E; font-weight: 600; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; }
+    #splash .splash-bar { margin-top: 6px; width: 120px; height: 3px; border-radius: 99px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    #splash .splash-bar::after { content: ""; display: block; width: 40%; height: 100%; border-radius: 99px; background: #B8622E; animation: splashSlide 1.1s ease-in-out infinite; }
+    @keyframes splashSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+    #splash.splash-hidden { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -85,20 +49,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <script>
-    // Fetch + transform app.jsx ourselves rather than relying on Babel's
-    // automatic <script type="text/babel"> page-wide scan — that scan
-    // picks up ANY such tag on the page, including ones injected by
-    // browser extensions, which can crash the whole load with unrelated
-    // errors (seen in testing: a coupon-collector extension's injected
-    // script made Babel's auto-scan throw "Cannot use import statement
-    // outside a module"). Fetching only our own file sidesteps that.
     fetch("app.jsx")
       .then(function (res) {
         if (!res.ok) throw new Error("Could not load app.jsx (" + res.status + ")");
         return res.text();
       })
       .then(function (source) {
-        var compiled = Babel.transform(source, { presets: ["react"] }).code;
+        var compiled = Babel.transform(source, { presets: [["react", { runtime: "classic" }]] }).code;
         var script = document.createElement("script");
         script.textContent = compiled + "\n;window.__App = App;";
         document.body.appendChild(script);
@@ -112,10 +69,6 @@
   </script>
 
   <script>
-    // Remove the splash as soon as React has actually painted something
-    // into #root — not on a fixed timer — so it never disappears too
-    // early (blank gap) or lingers too long. Falls back to a hard
-    // timeout just in case.
     (function () {
       const splash = document.getElementById("splash");
       const rootEl = document.getElementById("root");
@@ -131,7 +84,7 @@
         }
       });
       observer.observe(rootEl, { childList: true, subtree: true });
-      setTimeout(hideSplash, 6000); // safety fallback
+      setTimeout(hideSplash, 6000);
     })();
 
     if ("serviceWorker" in navigator) {
