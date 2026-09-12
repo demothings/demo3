@@ -1,6 +1,6 @@
 {
-  "name": "Turiya Hostel Desk — Demo",
-  "short_name": "Turiya Demo",
+  "name": "Sample Hostel Desk — Demo",
+  "short_name": "Sample Demo",
   "description": "Hostel room, tenant and rent management (isolated demo)",
   "start_url": "./index.html",
   "display": "standalone",
