@@ -1,0 +1,66 @@
+name: Backup Supabase Data
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'   # every Sunday at 3 AM UTC
+  workflow_dispatch:        # lets you trigger it manually too
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch tables from Supabase
+        run: |
+          mkdir -p backups/$(date +'%Y-%m-%d')
+          for TABLE in rooms tenants tenant_history user_roles payments security_deposits; do
+            curl -s "${{ secrets.SUPABASE_URL }}/rest/v1/${TABLE}?select=*" \
+              -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+              -o "backups/$(date +'%Y-%m-%d')/${TABLE}.json"
+          done
+
+      - name: Delete backups older than 6 months (repo)
+        run: |
+          cutoff=$(date -d "-6 months" +%Y-%m-%d)
+          for dir in backups/*/; do
+            d=$(basename "$dir")
+            if [[ "$d" < "$cutoff" ]]; then
+              echo "Removing old backup folder: $d"
+              rm -rf "$dir"
+            fi
+          done
+
+      - name: Commit and push backup
+        run: |
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A backups/
+          git commit -m "Automated backup $(date +'%Y-%m-%d') (cleanup >6mo)" || echo "No changes to commit"
+          git push
+
+      - name: Install rclone
+        run: sudo -v ; curl https://rclone.org/install.sh | sudo bash
+
+      - name: Upload backups to Google Drive
+        env:
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          RCLONE_CONFIG_GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive
+          RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          rclone copy backups/ gdrive: --create-empty-src-dirs -v
+
+      - name: Delete backups older than 6 months (Google Drive)
+        env:
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          RCLONE_CONFIG_GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive
+          RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          rclone delete gdrive: --min-age 6M --rmdirs -v
