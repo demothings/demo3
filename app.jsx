@@ -5895,6 +5895,76 @@ function UsersPage({ currentUser }) {
 }
 
 // ── ROOT ─────────────────────────────────────────────────────
+// ── NOT FOUND / ACCESS DENIED PAGE ──────────────────────────────
+// Shown when `page` doesn't match any known route, or matches a route the
+// current role isn't allowed to view (e.g. a non-manager landing on
+// "rent" via a stale link) — so it's never just a blank screen.
+function NotFoundPage({ setPage, restricted = false }) {
+  return (
+    <div style={{ maxWidth: 420, margin: "60px auto", padding: "0 20px", textAlign: "center" }}>
+      <div style={{ width: 64, height: 64, borderRadius: 18, background: restricted ? "#FEF3C7" : "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 18px" }}>
+        {restricted ? "🔒" : "🧭"}
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 8, fontFamily: FONT_DISPLAY }}>
+        {restricted ? "You don't have access to this page" : "Page not found"}
+      </div>
+      <div style={{ fontSize: 14, color: "#475569", marginBottom: 22, lineHeight: 1.5 }}>
+        {restricted
+          ? "This section is limited to certain roles. If you think this is a mistake, ask an admin to check your account."
+          : "That screen doesn't exist, or the link is out of date."}
+      </div>
+      <button onClick={() => setPage("home")} style={{ padding: "12px 24px", borderRadius: 14, border: "none", background: "#4F46E5", color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer" }}>
+        ← Back to Dashboard
+      </button>
+    </div>
+  );
+}
+
+// ── ERROR BOUNDARY ───────────────────────────────────────────
+// Catches runtime React errors anywhere in the tree below it so a bug on
+// one screen shows a recoverable, on-brand error page instead of a blank
+// white screen or the raw React dev overlay. Does NOT catch errors from
+// the initial app.jsx fetch/compile step in index.html — that has its
+// own matching error page since React itself may not be usable yet.
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("App crashed:", error, info);
+  }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div style={{ minHeight: "100vh", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "Inter, system-ui, sans-serif" }}>
+        <div style={{ maxWidth: 420, width: "100%", background: "#fff", borderRadius: 20, border: "1px solid #E2E8F0", boxShadow: "0 12px 32px rgba(15,23,42,0.10)", padding: "32px 28px", textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 18px" }}>⚠️</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 8, fontFamily: FONT_DISPLAY }}>Something went wrong</div>
+          <div style={{ fontSize: 14, color: "#475569", marginBottom: 22, lineHeight: 1.5 }}>
+            This screen hit an unexpected error. Your data is safe — reloading usually fixes it.
+          </div>
+          <button onClick={() => window.location.reload()} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "none", background: "#4F46E5", color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", marginBottom: 10 }}>
+            🔄 Reload app
+          </button>
+          <button onClick={() => this.setState({ hasError: false, error: null })} style={{ width: "100%", padding: "11px 0", borderRadius: 14, border: "1.5px solid #E2E8F0", background: "#fff", color: "#475569", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
+            Try to continue
+          </button>
+          {this.state.error && (
+            <details style={{ marginTop: 18, textAlign: "left" }}>
+              <summary style={{ fontSize: 12, color: "#94A3B8", cursor: "pointer", fontWeight: 600 }}>Technical details</summary>
+              <pre style={{ fontSize: 11, color: "#DC2626", background: "#FEF2F2", borderRadius: 10, padding: 10, marginTop: 8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{String(this.state.error && this.state.error.message || this.state.error)}</pre>
+            </details>
+          )}
+        </div>
+      </div>
+    );
+  }
+}
+
 function App() {
   const isOnline = useOnlineStatus();
   const [rooms, setRooms] = useState(initRooms);
@@ -6082,6 +6152,15 @@ function App() {
       {isManager && page === "deposits" && <DepositsPage rooms={rooms} setRooms={setRooms} today={today} />}
       {isAdmin && page === "history" && <HistoryPage />}
       {isAdmin && page === "users" && <UsersPage currentUser={user} />}
+      {(() => {
+        const knownPages = ["home", "rooms", "search", "rent", "deposits", "history", "users"];
+        const managerPages = ["rent", "deposits"];
+        const adminPages = ["history", "users"];
+        if (!knownPages.includes(page)) return <NotFoundPage setPage={setPage} />;
+        if (managerPages.includes(page) && !isManager) return <NotFoundPage setPage={setPage} restricted />;
+        if (adminPages.includes(page) && !isAdmin) return <NotFoundPage setPage={setPage} restricted />;
+        return null;
+      })()}
     </div>
   );
 }
