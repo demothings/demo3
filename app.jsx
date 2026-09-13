@@ -3045,8 +3045,8 @@ function RentPage({ rooms, setRooms, today }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
                       {t.name}
-                      {t.isPaid && }
-                      {t.isSnoozed && }
+                      {t.isPaid && <span style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", padding: "1px 6px", borderRadius: 99 }}>Paid</span>}
+                      {t.isSnoozed && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", background: "#EDE9FE", padding: "1px 6px", borderRadius: 99 }}>Snoozed</span>}
                     </div>
                     <div style={{ fontSize: 11, color: "#94A3B8" }}>Floor {t.floor} · Room {t.roomNumber} · Bed {t.bed}</div>
                   </div>
