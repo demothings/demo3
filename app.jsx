@@ -2418,7 +2418,7 @@ function RentPage({ rooms, setRooms, today }) {
       });
     } catch (e) {
       console.error(e);
-      alert("Failed to update payment status. Please check your internet connection.");
+      alert("Failed to update payment status: " + (e && e.message ? e.message : "Unknown error"));
     }
     setBusyKey(null);
   }
@@ -3920,7 +3920,7 @@ function DepositsPage({ rooms, setRooms, today }) {
       });
     } catch (e) {
       console.error(e);
-      alert("Failed to record the deposit. Please check your internet connection.");
+      alert("Failed to record the deposit: " + (e && e.message ? e.message : "Unknown error"));
     }
     setBusyKey(null);
   }
@@ -3961,7 +3961,7 @@ function DepositsPage({ rooms, setRooms, today }) {
       });
     } catch (e) {
       console.error(e);
-      alert("Failed to record the return. Please check your internet connection.");
+      alert("Failed to record the return: " + (e && e.message ? e.message : "Unknown error"));
     }
     setBusyKey(null);
   }
@@ -4020,7 +4020,7 @@ function DepositsPage({ rooms, setRooms, today }) {
       setDepositsLog(prev => prev ? prev.filter(d => d.id !== row.id) : prev);
     } catch (e) {
       console.error(e);
-      alert("Failed to undo. Please check your internet connection.");
+      alert("Failed to undo: " + (e && e.message ? e.message : "Unknown error"));
     }
     setBusyKey(null);
   }
@@ -4039,7 +4039,7 @@ function DepositsPage({ rooms, setRooms, today }) {
       refreshLog();
     } catch (e) {
       console.error(e);
-      alert("Failed to undo. Please check your internet connection.");
+      alert("Failed to undo: " + (e && e.message ? e.message : "Unknown error"));
     }
     setBusyKey(null);
   }
@@ -4737,7 +4737,7 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
       setEditingRoom(null); // the room being edited just changed underneath it — close to avoid stale state
     } catch (e) {
       console.error(e);
-      alert("Failed to move tenant. Please check your internet connection and try again.");
+      alert("Failed to move tenant: " + (e && e.message ? e.message : "Unknown error"));
     }
     setMoving(false);
   }
@@ -4752,7 +4752,7 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
       setEditingRoom(null);
     } catch (e) {
       console.error(e);
-      alert("Failed to delete room. Please check your connection and try again.");
+      alert("Failed to delete room: " + (e && e.message ? e.message : "Unknown error"));
     }
     setDeletingRoom(false);
   }
@@ -4769,7 +4769,7 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
       setNewRoomBeds(2);
     } catch (e) {
       console.error(e);
-      alert("Failed to create room. Please check your connection and try again.");
+      alert("Failed to create room: " + (e && e.message ? e.message : "Unknown error"));
     }
     setCreatingRoom(false);
   }
@@ -6160,7 +6160,11 @@ function App() {
       setRooms(prev => ({ ...prev, [id]: { ...updatedRoom, tenants: savedTenants } }));
     } catch(e) {
       console.error(e);
-      alert("Failed to save. Please check your internet connection.");
+      // Show the actual server/network error instead of a generic guess —
+      // "check your internet" is often wrong (expired session, a rejected
+      // field, a paused database) and just hides what really happened,
+      // making it impossible to tell the difference without opening devtools.
+      alert("Failed to save: " + (e && e.message ? e.message : "Unknown error") + "\n\nYour internet connection may be fine — this could be a session or server issue. If it keeps happening, screenshot this message.");
     }
     setSaving(false);
   }, []);
