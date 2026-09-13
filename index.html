@@ -96,14 +96,26 @@
         console.log("COMPILED LENGTH:", compiled.length);
         console.log("COMPILED FIRST 400 CHARS:", JSON.stringify(compiled.slice(0, 400)));
         var script = document.createElement("script");
-        script.textContent = compiled + "\n;window.__App = App;";
+        script.textContent = compiled + "\n;window.__App = App;\n;window.__ErrorBoundary = ErrorBoundary;";
         document.body.appendChild(script);
         var root = ReactDOM.createRoot(document.getElementById("root"));
-        root.render(React.createElement(window.__App));
+        root.render(React.createElement(window.__ErrorBoundary, null, React.createElement(window.__App)));
       })
       .catch(function (err) {
-        document.getElementById("root").textContent = "Failed to load: " + err.message;
         console.error(err);
+        document.getElementById("root").innerHTML =
+          '<div style="min-height:100vh;background:#F8FAFC;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,system-ui,sans-serif;">' +
+            '<div style="max-width:420px;width:100%;background:#fff;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 12px 32px rgba(15,23,42,0.10);padding:32px 28px;text-align:center;">' +
+              '<div style="width:56px;height:56px;border-radius:16px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 18px;">🔌</div>' +
+              '<div style="font-size:20px;font-weight:700;color:#0F172A;margin-bottom:8px;font-family:\'Fraunces\',Georgia,serif;">Couldn\u2019t load Sample Hostel</div>' +
+              '<div style="font-size:14px;color:#475569;margin-bottom:22px;line-height:1.5;">Check your internet connection and try again. If this keeps happening, the hosted files may be temporarily unavailable.</div>' +
+              '<button onclick="window.location.reload()" style="width:100%;padding:12px 0;border-radius:14px;border:none;background:#4F46E5;color:#fff;font-weight:700;font-size:14.5px;cursor:pointer;margin-bottom:14px;">🔄 Try again</button>' +
+              '<details style="text-align:left;">' +
+                '<summary style="font-size:12px;color:#94A3B8;cursor:pointer;font-weight:600;">Technical details</summary>' +
+                '<pre style="font-size:11px;color:#DC2626;background:#FEF2F2;border-radius:10px;padding:10px;margin-top:8px;white-space:pre-wrap;word-break:break-word;">' + (err && err.message ? err.message.replace(/</g, "&lt;") : String(err)) + '</pre>' +
+              '</details>' +
+            '</div>' +
+          '</div>';
       });
   </script>
 
