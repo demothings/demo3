@@ -36,6 +36,48 @@ if (typeof document !== "undefined") {
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
     ::-webkit-scrollbar-thumb:hover { background: #4F46E5; }
+
+    /* Motion layer — small, purposeful animations so the app doesn't feel
+       static: pages settle in on navigation, cards lift on hover/tap,
+       urgent banners get a quiet pulse instead of just sitting there. */
+    @keyframes hzFadeSlideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes hzFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes hzPulseRing {
+      0% { box-shadow: 0 0 0 0 var(--pulse, #4F46E540); }
+      70% { box-shadow: 0 0 0 8px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    @keyframes hzPop {
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .hz-page { animation: hzFadeSlideIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .hz-fade { animation: hzFadeIn 0.25s ease both; }
+    .hz-pop { animation: hzPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    .hz-card {
+      transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease, border-color 0.16s ease;
+    }
+    .hz-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,23,42,0.10); }
+    .hz-card:active { transform: translateY(0) scale(0.99); }
+    .hz-alert { animation: hzPulseRing 2.2s ease-out infinite; }
+    .hz-stagger > * { animation: hzFadeSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .hz-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+    .hz-stagger > *:nth-child(2) { animation-delay: 0.05s; }
+    .hz-stagger > *:nth-child(3) { animation-delay: 0.08s; }
+    .hz-stagger > *:nth-child(4) { animation-delay: 0.11s; }
+    .hz-stagger > *:nth-child(5) { animation-delay: 0.14s; }
+    .hz-stagger > *:nth-child(6) { animation-delay: 0.17s; }
+    .hz-stagger > *:nth-child(7) { animation-delay: 0.20s; }
+    .hz-stagger > *:nth-child(8) { animation-delay: 0.23s; }
+    .hz-spin { animation: hzSpin 0.7s linear infinite; }
+    @keyframes hzSpin { to { transform: rotate(360deg); } }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
     }
@@ -1199,6 +1241,43 @@ const inputStyle = {
 };
 
 // ── CONTACT BUTTONS ───────────────────────────────────────────
+// ── TENANT AVATAR ────────────────────────────────────────────
+// Shows a tenant's uploaded profile photo (signed URL, fetched once and
+// cached module-wide so scrolling/re-rendering the same list doesn't
+// re-request a signed URL per frame) — falls back to their initial on a
+// colored circle while it loads, if they have no photo, or if the fetch
+// fails, so this never blocks or breaks the list it's used in.
+const _avatarUrlCache = new Map();
+function TenantAvatar({ path, size = 44, initial, color, bg, borderColor }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setUrl(null);
+    if (!path) return;
+    let pending = _avatarUrlCache.get(path);
+    if (!pending) {
+      pending = getSignedPhotoUrl(path).catch(() => null);
+      _avatarUrlCache.set(path, pending);
+    }
+    pending.then(u => { if (!cancelled) setUrl(u); });
+    return () => { cancelled = true; };
+  }, [path]);
+
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: bg, border: `2px solid ${borderColor}66`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontWeight: 800, fontSize: Math.round(size * 0.38), color,
+      flexShrink: 0, overflow: "hidden",
+    }}>
+      {url
+        ? <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setUrl(null)} />
+        : initial}
+    </div>
+  );
+}
+
 function ContactButtons({ phone, size = "normal" }) {
   if (!phone) return null;
   const clean = phone.replace(/\D/g, "");
@@ -1516,7 +1595,7 @@ function HomePage({ rooms, setPage, setActiveFloor, today, isManager = true, set
   const newTenantsLastMonth = [...tenants].filter(t => t.admissionDate && inRange(t.admissionDate + "T00:00:00", lastMonthStart, thisMonthStart)).length;
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "16px 12px 90px" }}>
+    <div className="hz-page" style={{ maxWidth: 1200, margin: "0 auto", padding: "16px 12px 90px" }}>
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 28, fontWeight: 600, margin: "0 0 3px", letterSpacing: "-0.3px", color: "#1E293B", fontFamily: FONT_DISPLAY }}>Dashboard</h1>
         <p style={{ margin: 0, color: "#475569", fontSize: 14.5 }}>3 floors · {all.length} rooms · {totalBeds} beds total</p>
@@ -1526,8 +1605,7 @@ function HomePage({ rooms, setPage, setActiveFloor, today, isManager = true, set
       {isManager && (overdue.length > 0 || dueToday.length > 0 || dueSoon.length > 0) && (
         <div style={{ marginBottom: 20, display: "flex", flexDirection: "column", gap: 8 }}>
           {overdue.length > 0 && (
-            <div onClick={() => setPage("rent")} style={{ background: "#FEE2E2", border: "1.5px solid #991B1B", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-              
+            <div className="hz-page hz-alert" style={{ "--pulse": "#991B1B40", background: "#FEE2E2", border: "1.5px solid #991B1B", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }} onClick={() => setPage("rent")}>
               <div style={{ flex: 1 }}>
                 <b style={{ color: "#991B1B" }}>Rent OVERDUE</b> — {overdue.length} tenant{overdue.length > 1 ? "s" : ""}: {overdue.slice(0,3).map(t => `${t.name} (${t.rentStatus.daysOverdue}d)`).join(", ")}{overdue.length > 3 ? ` +${overdue.length-3} more` : ""}
               </div>
@@ -1535,7 +1613,7 @@ function HomePage({ rooms, setPage, setActiveFloor, today, isManager = true, set
             </div>
           )}
           {dueToday.length > 0 && (
-            <div onClick={() => setPage("rent")} style={{ background: "#FFEDD5", border: "1.5px solid #FDBA74", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="hz-page hz-alert" style={{ "--pulse": "#EA580C40", background: "#FFEDD5", border: "1.5px solid #FDBA74", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }} onClick={() => setPage("rent")}>
               <div style={{ flex: 1 }}>
                 <b style={{ color: "#EA580C" }}>Rent due TODAY</b> — {dueToday.length} tenant{dueToday.length > 1 ? "s" : ""}: {dueToday.slice(0,3).map(t => t.name).join(", ")}{dueToday.length > 3 ? ` +${dueToday.length-3} more` : ""}
               </div>
@@ -1543,7 +1621,7 @@ function HomePage({ rooms, setPage, setActiveFloor, today, isManager = true, set
             </div>
           )}
           {dueSoon.length > 0 && (
-            <div onClick={() => setPage("rent")} style={{ background: "#FEF9C3", border: "1.5px solid #FDE047", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="hz-page" style={{ background: "#FEF9C3", border: "1.5px solid #FDE047", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }} onClick={() => setPage("rent")}>
               <div style={{ flex: 1 }}>
                 <b style={{ color: "#CA8A04" }}>Rent due soon</b> — {dueSoon.length} tenant{dueSoon.length > 1 ? "s" : ""} in the next 5 days
               </div>
@@ -1592,22 +1670,48 @@ function HomePage({ rooms, setPage, setActiveFloor, today, isManager = true, set
       )}
 
       {/* KPI Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: "#94A3B8", letterSpacing: "0.6px", marginBottom: 8 }}>BEDS</div>
+      <div className="hz-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: 18 }}>
         {[
           { label: "Total Beds", value: totalBeds, color: "#334155" },
           { label: "Occupied", value: totalOcc, color: "#4F46E5", goTo: "search" },
           { label: "Available", value: totalFree, color: "#0D9488", statusFilter: "partial" },
-          { label: "Total Rooms", value: all.length, color: "#7C3AED", statusFilter: "all" },
-          { label: "Full Rooms", value: fullRooms, color: "#B91C1C", statusFilter: "full" },
-          { label: "Partial", value: partialRooms, color: "#CA8A04", statusFilter: "partial" },
-          { label: "Empty", value: emptyRooms, color: "#0D9488", statusFilter: "empty" },
           { label: "Occupancy", value: `${occPct}%`, color: "#3A4A8F" },
         ].map(c => (
-          <div key={c.label}
+          <div key={c.label} className="hz-card"
             onClick={c.statusFilter ? () => { setRoomsInitialStatusFilter(c.statusFilter); setPage("rooms"); } : c.goTo ? () => setPage(c.goTo) : undefined}
-            style={{ background: "#fff", borderRadius: 18, padding: "16px 16px 14px", border: "1px solid #E2E8F0", borderLeft: `3px solid ${c.color}`, boxShadow: "0 1px 3px rgba(15,23,42,0.05)", cursor: (c.statusFilter || c.goTo) ? "pointer" : "default", transition: "transform 0.12s ease, box-shadow 0.12s ease" }}>
-            <div style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", lineHeight: 1, fontFamily: FONT_DISPLAY }}>{c.value}</div>
-            <div style={{ fontSize: 12, color: "#64748B", marginTop: 7, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>{c.label}{(c.statusFilter || c.goTo) && <span style={{ color: c.color }}>→</span>}</div>
+            style={{ background: "#fff", borderRadius: 18, padding: "14px 16px 15px", border: "1px solid #E2E8F0", borderLeft: `3px solid ${c.color}`, boxShadow: "0 1px 3px rgba(15,23,42,0.05)", cursor: (c.statusFilter || c.goTo) ? "pointer" : "default" }}>
+            <div style={{ fontSize: 11.5, color: "#64748B", fontWeight: 700, letterSpacing: "0.3px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 99, background: c.color, flexShrink: 0 }} />
+              {c.label}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", lineHeight: 1, fontFamily: FONT_DISPLAY, display: "flex", alignItems: "baseline", gap: 6 }}>
+              {c.value}
+              {(c.statusFilter || c.goTo) && <span style={{ fontSize: 12, fontWeight: 600, color: c.color }}>→</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 11, fontWeight: 800, color: "#94A3B8", letterSpacing: "0.6px", marginBottom: 8 }}>ROOMS</div>
+      <div className="hz-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: 18 }}>
+        {[
+          { label: "Total Rooms", value: all.length, color: "#7C3AED", statusFilter: "all" },
+          { label: "Full", value: fullRooms, color: "#B91C1C", statusFilter: "full" },
+          { label: "Partial", value: partialRooms, color: "#CA8A04", statusFilter: "partial" },
+          { label: "Empty", value: emptyRooms, color: "#0D9488", statusFilter: "empty" },
+        ].map(c => (
+          <div key={c.label} className="hz-card"
+            onClick={c.statusFilter ? () => { setRoomsInitialStatusFilter(c.statusFilter); setPage("rooms"); } : c.goTo ? () => setPage(c.goTo) : undefined}
+            style={{ background: "#fff", borderRadius: 18, padding: "14px 16px 15px", border: "1px solid #E2E8F0", borderLeft: `3px solid ${c.color}`, boxShadow: "0 1px 3px rgba(15,23,42,0.05)", cursor: (c.statusFilter || c.goTo) ? "pointer" : "default" }}>
+            <div style={{ fontSize: 11.5, color: "#64748B", fontWeight: 700, letterSpacing: "0.3px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 99, background: c.color, flexShrink: 0 }} />
+              {c.label}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", lineHeight: 1, fontFamily: FONT_DISPLAY, display: "flex", alignItems: "baseline", gap: 6 }}>
+              {c.value}
+              {(c.statusFilter || c.goTo) && <span style={{ fontSize: 12, fontWeight: 600, color: c.color }}>→</span>}
+            </div>
           </div>
         ))}
       </div>
@@ -3091,15 +3195,30 @@ function RentPage({ rooms, setRooms, today }) {
                 const isPaid = t.isPaid;
                 const isSnoozed = t.isSnoozed;
                 const isBusy = busyKey === key;
-                const borderColor = isPaid ? "#16A34A" : isSnoozed ? "#8266A0" : rs.color;
-                const bgColor = isPaid ? "#DCFCE7" : isSnoozed ? "#EDE9FE" : "#fff";
+                // Only show the flat "paid" green when we're actually on the Paid
+                // tab. In Due Today/Due Soon/etc, a tenant can be paid for the
+                // current cycle but still sit in this list because their *next*
+                // cycle is coming up — that should still read as orange/yellow,
+                // not green, or the whole list looks uniformly "done".
+                const showPaidStyle = isPaid && filter === "paid";
+                const borderColor = showPaidStyle ? "#16A34A" : isSnoozed ? "#8266A0" : rs.color;
+                // Fill every card with a tint of its own status color (not just
+                // Paid) so every tab reads with the same visual weight — an
+                // Overdue tab that's all white-with-a-border next to a Paid tab
+                // that's solid green looks like only one of them "matters".
+                const bgColor = showPaidStyle ? "#DCFCE7" : isSnoozed ? "#EDE9FE" : rs.bg;
                 return (
                   <div key={idx} style={{ background: bgColor, border: `1.5px solid ${borderColor}44`, borderLeft: `4px solid ${borderColor}`, borderRadius: 18, padding: "14px 16px" }}>
                     {/* Name row with rent amount badge */}
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: "50%", background: isPaid ? "#DCFCE7" : isSnoozed ? "#EDE9FE" : rs.bg, border: `2px solid ${borderColor}66`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 17, color: borderColor, flexShrink: 0 }}>
-                        {isPaid ? "" : isSnoozed ? "" : t.name.charAt(0).toUpperCase()}
-                      </div>
+                      <TenantAvatar
+                        path={t.profilePicPath}
+                        size={44}
+                        initial={t.name.charAt(0).toUpperCase()}
+                        color={borderColor}
+                        bg={showPaidStyle ? "#DCFCE7" : isSnoozed ? "#EDE9FE" : rs.bg}
+                        borderColor={borderColor}
+                      />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 2 }}>
                           <span style={{ fontWeight: 800, fontSize: 16 }}>{t.name}</span>
@@ -3121,8 +3240,8 @@ function RentPage({ rooms, setRooms, today }) {
                         </div>
                       </div>
                       <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                        <span style={{ background: isPaid ? "#DCFCE7" : isSnoozed ? "#EDE9FE" : rs.bg, color: isPaid ? "#0D9488" : isSnoozed ? "#7C3AED" : rs.color, fontWeight: 700, fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${borderColor}44`, whiteSpace: "nowrap" }}>
-                          {isPaid ? "Paid" : isSnoozed ? `Snoozed to ${fmtDateIST(new Date(t.rentSnoozedUntil), { day: "numeric", month: "short" })}` : `${rs.icon} ${rs.label}`}
+                        <span style={{ background: showPaidStyle ? "#DCFCE7" : isSnoozed ? "#EDE9FE" : rs.bg, color: showPaidStyle ? "#0D9488" : isSnoozed ? "#7C3AED" : rs.color, fontWeight: 700, fontSize: 11, padding: "3px 10px", borderRadius: 99, border: `1px solid ${borderColor}44`, whiteSpace: "nowrap" }}>
+                          {showPaidStyle ? "Paid" : isSnoozed ? `Snoozed to ${fmtDateIST(new Date(t.rentSnoozedUntil), { day: "numeric", month: "short" })}` : rs.label}
                         </span>
                         {/* Shows how many extra cycles are stacked on top of the
                             normal payment, right where you already see "Paid" —
