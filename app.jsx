@@ -949,10 +949,10 @@ function getRentStatus(admissionDate, today, rentPaidOn = null) {
   const daysDiff = Math.round((todayMidnight - firstMissedBoundary) / (24*60*60*1000));
   if (daysDiff < 0) {
     const daysUntil = -daysDiff;
-    if (daysUntil <= 5) return { type: "due_soon", label: `Due in ${daysUntil} day${daysUntil>1?"s":""}`, color: "#D97706", bg: "#FEF3C7", icon: "", daysUntil, dueDay };
+    if (daysUntil <= 5) return { type: "due_soon", label: `Due in ${daysUntil} day${daysUntil>1?"s":""}`, color: "#CA8A04", bg: "#FEF9C3", icon: "", daysUntil, dueDay };
     return { type: "ok", label: `Due on ${ordinal(dueDay)}`, color: "#16A34A", bg: "#DCFCE7", icon: "", daysUntil, dueDay };
   }
-  if (daysDiff === 0) return { type: "due_today", label: "Due Today", color: "#4F46E5", bg: "#FEE2E2", icon: "", daysUntil: 0, dueDay };
+  if (daysDiff === 0) return { type: "due_today", label: "Due Today", color: "#EA580C", bg: "#FFEDD5", icon: "", daysUntil: 0, dueDay };
   const daysOverdue = daysDiff;
   return { type: "overdue", label: `${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue`, color: "#991B1B", bg: "#FEE2E2", icon: "", daysOverdue, dueDay };
 }
@@ -1061,10 +1061,10 @@ function getRentStatus15(admissionDate, today, rentPaidOn = null) {
   const daysDiff = Math.round((todayMidnight - firstMissedBoundary) / MS_PER_DAY);
   if (daysDiff < 0) {
     const daysUntil = -daysDiff;
-    if (daysUntil <= 5) return { type: "due_soon", label: `Due in ${daysUntil} day${daysUntil>1?"s":""}`, color: "#D97706", bg: "#FEF3C7", icon: "", daysUntil, cycleStart, nextDue };
+    if (daysUntil <= 5) return { type: "due_soon", label: `Due in ${daysUntil} day${daysUntil>1?"s":""}`, color: "#CA8A04", bg: "#FEF9C3", icon: "", daysUntil, cycleStart, nextDue };
     return { type: "ok", label: `Due on ${dueLabel}`, color: "#16A34A", bg: "#DCFCE7", icon: "", daysUntil, cycleStart, nextDue };
   }
-  if (daysDiff === 0) return { type: "due_today", label: "Due Today", color: "#4F46E5", bg: "#FEE2E2", icon: "", daysUntil: 0, cycleStart, nextDue };
+  if (daysDiff === 0) return { type: "due_today", label: "Due Today", color: "#EA580C", bg: "#FFEDD5", icon: "", daysUntil: 0, cycleStart, nextDue };
   const daysOverdue = daysDiff;
   return { type: "overdue", label: `${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue`, color: "#991B1B", bg: "#FEE2E2", icon: "", daysOverdue, cycleStart, nextDue };
 }
@@ -1535,21 +1535,19 @@ function HomePage({ rooms, setPage, setActiveFloor, today, isManager = true, set
             </div>
           )}
           {dueToday.length > 0 && (
-            <div onClick={() => setPage("rent")} style={{ background: "#FEE2E2", border: "1.5px solid #FCA5A5", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-              
+            <div onClick={() => setPage("rent")} style={{ background: "#FFEDD5", border: "1.5px solid #FDBA74", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
-                <b style={{ color: "#4F46E5" }}>Rent due TODAY</b> — {dueToday.length} tenant{dueToday.length > 1 ? "s" : ""}: {dueToday.slice(0,3).map(t => t.name).join(", ")}{dueToday.length > 3 ? ` +${dueToday.length-3} more` : ""}
+                <b style={{ color: "#EA580C" }}>Rent due TODAY</b> — {dueToday.length} tenant{dueToday.length > 1 ? "s" : ""}: {dueToday.slice(0,3).map(t => t.name).join(", ")}{dueToday.length > 3 ? ` +${dueToday.length-3} more` : ""}
               </div>
-              <span style={{ fontSize: 12, color: "#4F46E5", fontWeight: 600 }}>View →</span>
+              <span style={{ fontSize: 12, color: "#EA580C", fontWeight: 600 }}>View →</span>
             </div>
           )}
           {dueSoon.length > 0 && (
-            <div onClick={() => setPage("rent")} style={{ background: "#FEF3C7", border: "1.5px solid #FBBF24", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-              
+            <div onClick={() => setPage("rent")} style={{ background: "#FEF9C3", border: "1.5px solid #FDE047", borderRadius: 16, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
-                <b style={{ color: "#B45309" }}>Rent due soon</b> — {dueSoon.length} tenant{dueSoon.length > 1 ? "s" : ""} in the next 5 days
+                <b style={{ color: "#CA8A04" }}>Rent due soon</b> — {dueSoon.length} tenant{dueSoon.length > 1 ? "s" : ""} in the next 5 days
               </div>
-              <span style={{ fontSize: 12, color: "#B45309", fontWeight: 600 }}>View →</span>
+              <span style={{ fontSize: 12, color: "#CA8A04", fontWeight: 600 }}>View →</span>
             </div>
           )}
         </div>
@@ -2867,8 +2865,8 @@ function RentPage({ rooms, setRooms, today }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, marginBottom: 14 }}>
         {[
           { label: "Overdue", value: overdue.length, color: "#991B1B", bg: "#FEE2E2", icon: "", id: "overdue" },
-          { label: "Due Today", value: dueToday.length, color: "#4F46E5", bg: "#FEE2E2", icon: "", id: "due_today" },
-          { label: "Due Soon", value: dueSoon.length, color: "#D97706", bg: "#FEF3C7", icon: "", id: "due_soon" },
+          { label: "Due Today", value: dueToday.length, color: "#EA580C", bg: "#FFEDD5", icon: "", id: "due_today" },
+          { label: "Due Soon", value: dueSoon.length, color: "#CA8A04", bg: "#FEF9C3", icon: "", id: "due_soon" },
           { label: "Upcoming", value: ok.length, color: "#16A34A", bg: "#DCFCE7", icon: "", id: "ok" },
           { label: "Paid ", value: paidList.length, color: "#334155", bg: "#ECFDF5", icon: "", id: "paid" },
           { label: "Snoozed", value: snoozedList.length, color: "#7C3AED", bg: "#EDE9FE", icon: "", id: "snoozed" },
@@ -3032,8 +3030,8 @@ function RentPage({ rooms, setRooms, today }) {
               const overdueDay = t.daysToNext < 0;
               const dueTodayFlag = t.daysToNext === 0;
               const soon = t.daysToNext > 0 && t.daysToNext <= 3;
-              const color = overdueDay ? "#991B1B" : dueTodayFlag ? "#4F46E5" : soon ? "#D97706" : "#16A34A";
-              const bg = (overdueDay || dueTodayFlag) ? "#FEE2E2" : soon ? "#FEF3C7" : "#DCFCE7";
+              const color = overdueDay ? "#991B1B" : dueTodayFlag ? "#EA580C" : soon ? "#CA8A04" : "#16A34A";
+              const bg = overdueDay ? "#FEE2E2" : dueTodayFlag ? "#FFEDD5" : soon ? "#FEF9C3" : "#DCFCE7";
               const dueDateText = t.is15
                 ? fmtDateIST(t.rentStatus.nextDue, { day: "numeric", month: "short" })
                 : `on the ${ordinal(t.rentStatus.dueDay)}`;
