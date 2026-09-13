@@ -432,9 +432,16 @@ function tenantToDbFields(t, roomId, bedIndex) {
     occupation_place: t.occupationPlace || "",
     occupation_id: t.occupationId || "",
     reason_to_stay: t.reasonToStay || "",
-    rent_amount: t.rentAmount || "",
-    admission_date: t.admissionDate || "",
-    checkout_date: t.checkoutDate || "",
+    // These three are numeric/date columns in Postgres — sending "" (empty
+    // string) instead of null for an unfilled field throws a real DB error
+    // ("invalid input syntax for type numeric/date"), which surfaces to the
+    // user as a failed save with no indication why. This most commonly bites
+    // on a brand-new tenant who's had a photo uploaded but not yet had rent
+    // amount / admission date filled in — exactly the save that looks like
+    // it "should" have worked.
+    rent_amount: (t.rentAmount === "" || t.rentAmount == null) ? null : t.rentAmount,
+    admission_date: (t.admissionDate === "" || t.admissionDate == null) ? null : t.admissionDate,
+    checkout_date: (t.checkoutDate === "" || t.checkoutDate == null) ? null : t.checkoutDate,
     billing_type: t.billingType || "monthly",
     rent_paid_on: t.rentPaidOn || null,
     rent_payment_mode: t.rentPaymentMode || null,
@@ -634,8 +641,8 @@ async function archiveTenants(oldTenants, roomId, floor, roomNumber) {
       occupation_place: t.occupationPlace || "",
       occupation_id: t.occupationId || "",
       reason_to_stay: t.reasonToStay || "",
-      rent_amount: t.rentAmount || "",
-      admission_date: t.admissionDate || "",
+      rent_amount: (t.rentAmount === "" || t.rentAmount == null) ? null : t.rentAmount,
+      admission_date: (t.admissionDate === "" || t.admissionDate == null) ? null : t.admissionDate,
       checkout_date: t.checkoutDate || istDateStr(),
       billing_type: t.billingType || "monthly",
       deposit_amount: t.depositAmount || null,
