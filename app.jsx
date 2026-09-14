@@ -481,21 +481,38 @@ function tenantToDbFields(t, roomId, bedIndex) {
 // (empty bed filled, or a different name in that bed) gets a fresh row —
 // and the old occupant, if any, still gets archived exactly as before.
 async function saveRoom(room, tenants) {
-  const id = `${room.floor}-${room.number}`;
-  // Upsert (not PATCH) the room row. PATCH silently does nothing if no row
-  // with this id exists yet — it doesn't error, it just updates zero rows —
-  // and then the tenant insert right below fails with a foreign-key
-  // violation ("Key is not present in table rooms") that looked like a
-  // generic save failure but was actually a missing room row. Rooms created
-  // through "Add Room" always get inserted, but any room whose DB row is
-  // missing or was never created for some other reason would silently be
-  // stuck like this on every save. Upserting makes saveRoom self-healing.
-  await sbFetch(
-    `/rooms`,
-    "POST",
-    { id, floor: room.floor, number: room.number, beds: room.beds, label: room.label },
-    { "Prefer": "resolution=merge-duplicates,return=minimal" }
-  );
+  // Look up the room by its actual floor+number columns rather than assuming
+  // its id is exactly "<floor>-<number>". My previous fix (upserting on that
+  // computed id) fixed the missing-room-row crash, but any room whose real
+  // id in the database DOESN'T match that exact string — e.g. it was created
+  // before this id scheme, or with different casing/spacing — got a brand
+  // new duplicate row inserted instead of being matched, which is why a
+  // second copy of the room (and a second tenant, this one with the photo)
+  // showed up instead of updating the original. Matching on floor+number
+  // finds the real row (whatever its id is) and updates that one instead.
+  const computedId = `${room.floor}-${room.number}`;
+  const matches = (await sbFetch(
+    `/rooms?floor=eq.${encodeURIComponent(room.floor)}&number=eq.${encodeURIComponent(room.number)}&select=id`
+  )) || [];
+
+  let id;
+  if (matches.length > 0) {
+    id = matches[0].id;
+    await sbFetch(
+      `/rooms?id=eq.${id}`,
+      "PATCH",
+      { beds: room.beds, label: room.label },
+      { "Prefer": "return=minimal" }
+    );
+  } else {
+    id = computedId;
+    await sbFetch(
+      `/rooms`,
+      "POST",
+      { id, floor: room.floor, number: room.number, beds: room.beds, label: room.label },
+      { "Prefer": "return=minimal" }
+    );
+  }
 
   const existing = (await sbFetch(`/tenants?room_id=eq.${id}&select=*`)) || [];
   const existingByBed = {};
@@ -4423,6 +4440,7 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
     return n === 1 ? "Single" : n === 2 ? "Double" : n === 3 ? "Triple" : n === 4 ? "Quad" : `${n}-Seater`;
   }
   const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [addingRoom, setAddingRoom] = useState(false);
   const [newRoomBeds, setNewRoomBeds] = useState(2);
   const [creatingRoom, setCreatingRoom] = useState(false);
@@ -4672,13 +4690,22 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
     return out;
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     const phoneIssues = getPhoneIssues();
     if (Object.keys(phoneIssues).length > 0) return; // blocked — Save button is disabled in this state too
     const beds = Math.max(1, Math.min(20, editForm.beds));
     const updated = { ...editingRoom, beds, label: editForm.label, tenants: makeBeds(beds, editForm.tenants) };
-    onSaveRoom(updated);
-    setEditingRoom(null);
+    // Previously this closed the edit modal immediately after firing the
+    // save, without waiting to see if it actually worked — so a failed save
+    // (bad session, rejected field, dropped connection) looked exactly like
+    // the tenant/edit just vanishing, even though the error alert WAS firing
+    // underneath the now-closed modal. Now we wait for the real result and
+    // only close on confirmed success; on failure the modal stays open with
+    // your edits intact so nothing is lost and it's obvious it didn't save.
+    setSavingEdit(true);
+    const ok = await onSaveRoom(updated);
+    setSavingEdit(false);
+    if (ok) setEditingRoom(null);
   }
 
   // Opens the move picker for bed `i` in the room currently being edited.
@@ -5164,7 +5191,7 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
 
             <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
               <button onClick={() => setEditingRoom(null)} style={{ flex: 1, padding: "14px 0", borderRadius: 16, border: "1.5px solid #E2E8F0", background: "#fff", color: "#475569", fontWeight: 600, fontSize: 15, cursor: "pointer" }}>Cancel</button>
-              <button onClick={() => { const outgoing = getOutgoingHeldDeposits(); if (outgoing.length > 0) { setDepositWarning(outgoing); const init = {}; outgoing.forEach(o => { init[o.bed] = { amount: String(o.depositAmount), mode: "Cash", modeOther: "", note: "", step: "form" }; }); setReturnState(init); return; } saveEdit(); }} disabled={Object.keys(phoneIssues).length > 0} style={{ flex: 2, padding: "14px 0", borderRadius: 16, border: "none", background: Object.keys(phoneIssues).length > 0 ? "#94A3B8" : "#1E293B", color: "#fff", fontWeight: 700, fontSize: 15, cursor: Object.keys(phoneIssues).length > 0 ? "not-allowed" : "pointer" }}>Save Changes</button>
+              <button onClick={() => { const outgoing = getOutgoingHeldDeposits(); if (outgoing.length > 0) { setDepositWarning(outgoing); const init = {}; outgoing.forEach(o => { init[o.bed] = { amount: String(o.depositAmount), mode: "Cash", modeOther: "", note: "", step: "form" }; }); setReturnState(init); return; } saveEdit(); }} disabled={Object.keys(phoneIssues).length > 0 || savingEdit} style={{ flex: 2, padding: "14px 0", borderRadius: 16, border: "none", background: (Object.keys(phoneIssues).length > 0 || savingEdit) ? "#94A3B8" : "#1E293B", color: "#fff", fontWeight: 700, fontSize: 15, cursor: (Object.keys(phoneIssues).length > 0 || savingEdit) ? "not-allowed" : "pointer" }}>{savingEdit ? "Saving…" : "Save Changes"}</button>
             </div>
             {isManager && (
               <div style={{ textAlign: "center", marginTop: 14 }}>
@@ -5387,11 +5414,11 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
                   <div style={{ display: "flex", gap: 10 }}>
                     <button onClick={() => setDepositWarning(null)} style={{ flex: 1, padding: "12px 0", borderRadius: 14, border: "1.5px solid #E2E8F0", background: "#fff", color: "#475569", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Go Back</button>
                     <button
-                      disabled={hasError}
+                      disabled={hasError || savingEdit}
                       onClick={() => { setDepositWarning(null); saveEdit(); }}
-                      style={{ flex: 2, padding: "12px 0", borderRadius: 14, border: "none", background: hasError ? "#CBD5E1" : "#4F46E5", color: "#fff", fontWeight: 700, fontSize: 14, cursor: hasError ? "not-allowed" : "pointer" }}
+                      style={{ flex: 2, padding: "12px 0", borderRadius: 14, border: "none", background: (hasError || savingEdit) ? "#CBD5E1" : "#4F46E5", color: "#fff", fontWeight: 700, fontSize: 14, cursor: (hasError || savingEdit) ? "not-allowed" : "pointer" }}
                     >
-                      Continue & Save
+                      {savingEdit ? "Saving…" : "Continue & Save"}
                     </button>
                   </div>
                   <div style={{ fontSize: 11, color: hasError ? "#DC2626" : "#94A3B8", textAlign: "center", marginTop: 12, fontWeight: hasError ? 700 : 400 }}>
@@ -6168,10 +6195,12 @@ function App() {
 
   const handleSaveRoom = useCallback(async (updatedRoom) => {
     setSaving(true);
+    let ok = false;
     try {
       const savedTenants = await saveRoom(updatedRoom, updatedRoom.tenants);
       const id = `${updatedRoom.floor}-${updatedRoom.number}`;
       setRooms(prev => ({ ...prev, [id]: { ...updatedRoom, tenants: savedTenants } }));
+      ok = true;
     } catch(e) {
       console.error(e);
       // Show the actual server/network error instead of a generic guess —
@@ -6181,6 +6210,7 @@ function App() {
       alert("Failed to save: " + (e && e.message ? e.message : "Unknown error") + "\n\nYour internet connection may be fine — this could be a session or server issue. If it keeps happening, screenshot this message.");
     }
     setSaving(false);
+    return ok;
   }, []);
 
   const all = Object.values(rooms);
