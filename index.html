@@ -86,7 +86,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <script>
-    fetch("app.jsx")
+    // Cache-bust with the current time so browsers/CDNs never serve a stale
+    // app.jsx after a deploy — without this, "I uploaded the fix but it's
+    // still broken" is usually just an old cached copy still being served.
+    fetch("app.jsx?v=" + Date.now(), { cache: "no-store" })
       .then(function (res) {
         if (!res.ok) throw new Error("Could not load app.jsx (" + res.status + ")");
         return res.text();
