@@ -482,12 +482,19 @@ function tenantToDbFields(t, roomId, bedIndex) {
 // and the old occupant, if any, still gets archived exactly as before.
 async function saveRoom(room, tenants) {
   const id = `${room.floor}-${room.number}`;
-  // Update room beds and label
+  // Upsert (not PATCH) the room row. PATCH silently does nothing if no row
+  // with this id exists yet — it doesn't error, it just updates zero rows —
+  // and then the tenant insert right below fails with a foreign-key
+  // violation ("Key is not present in table rooms") that looked like a
+  // generic save failure but was actually a missing room row. Rooms created
+  // through "Add Room" always get inserted, but any room whose DB row is
+  // missing or was never created for some other reason would silently be
+  // stuck like this on every save. Upserting makes saveRoom self-healing.
   await sbFetch(
-    `/rooms?id=eq.${id}`,
-    "PATCH",
-    { beds: room.beds, label: room.label },
-    { "Prefer": "return=minimal" }
+    `/rooms`,
+    "POST",
+    { id, floor: room.floor, number: room.number, beds: room.beds, label: room.label },
+    { "Prefer": "resolution=merge-duplicates,return=minimal" }
   );
 
   const existing = (await sbFetch(`/tenants?room_id=eq.${id}&select=*`)) || [];
