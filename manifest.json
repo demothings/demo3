@@ -4,8 +4,8 @@
   "description": "Hostel room, tenant and rent management (isolated demo)",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#FAF7F1",
-  "theme_color": "#14231D",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1E293B",
   "orientation": "portrait",
 
   "icons": [
