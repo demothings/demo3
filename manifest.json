@@ -1,13 +1,13 @@
 {
-  "name": "Sample Hostel Desk — Demo",
-  "short_name": "Sample Demo",
-  "description": "Hostel room, tenant and rent management (isolated demo)",
+  "name": "Turiya Girls Hostel",
+  "short_name": "Turiya Hostel",
+  "description": "Hostel room, tenant and rent management",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#F8FAFC",
-  "theme_color": "#1E293B",
+  "background_color": "#F1EFE9",
+  "theme_color": "#1D3833",
   "orientation": "portrait",
-
+  
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
