@@ -3,14 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#1E293B" />
-  <title>Sample Hostel Desk — Demo</title>
+  <meta name="theme-color" content="#1D3833" />
+  <title>Turiya Girls Hostel</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <style>
     html, body, #root { height: 100%; margin: 0; padding: 0; }
 
+    /* ── Splash screen: shown instantly from HTML/CSS alone, before React,
+       React-DOM, or Babel have even finished downloading — so there is
+       never a blank white flash on load. #splash is removed automatically
+       once #root has content (see script at bottom of body). ── */
     #splash {
       position: fixed;
       inset: 0;
@@ -20,7 +24,7 @@
       align-items: center;
       justify-content: center;
       gap: 14px;
-      background: linear-gradient(160deg, #1E293B 0%, #0F172A 55%, #334155 100%);
+      background: linear-gradient(160deg, #1D3833 0%, #24413A 55%, #2C4A42 100%);
       font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
       transition: opacity 0.35s ease;
     }
@@ -30,14 +34,13 @@
       filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
     }
     #splash .splash-title {
-      color: #F8FAFC;
+      color: #F1EFE9;
       font-weight: 800;
       font-size: 20px;
       letter-spacing: 0.2px;
-      font-family: "Fraunces", Georgia, serif;
     }
     #splash .splash-sub {
-      color: #818CF8;
+      color: #B8622E;
       font-weight: 600;
       font-size: 12px;
       letter-spacing: 1.5px;
@@ -48,7 +51,7 @@
       width: 120px;
       height: 3px;
       border-radius: 99px;
-      background: rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.12);
       overflow: hidden;
     }
     #splash .splash-bar::after {
@@ -57,7 +60,7 @@
       width: 40%;
       height: 100%;
       border-radius: 99px;
-      background: #4F46E5;
+      background: #B8622E;
       animation: splashSlide 1.1s ease-in-out infinite;
     }
     @keyframes splashSlide {
@@ -74,9 +77,9 @@
   <div id="root"></div>
 
   <div id="splash">
-    <div class="splash-icon"></div>
-    <div class="splash-title">Sample Hostel</div>
-    <div class="splash-sub">Demo</div>
+    <div class="splash-icon">🏨</div>
+    <div class="splash-title">Turiya Hostel</div>
+    <div class="splash-sub">Turiya Girls Hostel</div>
     <div class="splash-bar"></div>
   </div>
 
@@ -84,45 +87,15 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-  <script>
-    // Cache-bust with the current time so browsers/CDNs never serve a stale
-    // app.jsx after a deploy — without this, "I uploaded the fix but it's
-    // still broken" is usually just an old cached copy still being served.
-    fetch("app.jsx?v=" + Date.now(), { cache: "no-store" })
-      .then(function (res) {
-        if (!res.ok) throw new Error("Could not load app.jsx (" + res.status + ")");
-        return res.text();
-      })
-      .then(function (source) {
-        var compiled = Babel.transform(source, { presets: [["react", { runtime: "classic" }]] }).code;
-        console.log("COMPILED LENGTH:", compiled.length);
-        console.log("COMPILED FIRST 400 CHARS:", JSON.stringify(compiled.slice(0, 400)));
-        var script = document.createElement("script");
-        script.textContent = compiled + "\n;window.__App = App;\n;window.__ErrorBoundary = ErrorBoundary;";
-        document.body.appendChild(script);
-        var root = ReactDOM.createRoot(document.getElementById("root"));
-        root.render(React.createElement(window.__ErrorBoundary, null, React.createElement(window.__App)));
-      })
-      .catch(function (err) {
-        console.error(err);
-        document.getElementById("root").innerHTML =
-          '<div style="min-height:100vh;background:#F8FAFC;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,system-ui,sans-serif;">' +
-            '<div style="max-width:420px;width:100%;background:#fff;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 12px 32px rgba(15,23,42,0.10);padding:32px 28px;text-align:center;">' +
-              '<div style="width:4px;height:40px;border-radius:99px;background:#DC2626;margin:0 auto 20px;"></div>' +
-              '<div style="font-size:20px;font-weight:700;color:#0F172A;margin-bottom:8px;font-family:\'Fraunces\',Georgia,serif;">Couldn\u2019t load Sample Hostel</div>' +
-              '<div style="font-size:14px;color:#475569;margin-bottom:22px;line-height:1.5;">Check your internet connection and try again. If this keeps happening, the hosted files may be temporarily unavailable.</div>' +
-              '<button onclick="window.location.reload()" style="width:100%;padding:12px 0;border-radius:14px;border:none;background:#4F46E5;color:#fff;font-weight:700;font-size:14.5px;cursor:pointer;margin-bottom:14px;">Try again</button>' +
-              '<details style="text-align:left;">' +
-                '<summary style="font-size:12px;color:#94A3B8;cursor:pointer;font-weight:600;">Technical details</summary>' +
-                '<pre style="font-size:11px;color:#DC2626;background:#FEF2F2;border-radius:10px;padding:10px;margin-top:8px;white-space:pre-wrap;word-break:break-word;">' + (err && err.message ? err.message.replace(/</g, "&lt;") : String(err)) + '</pre>' +
-              '</details>' +
-            '</div>' +
-          '</div>';
-      });
+  <script type="text/babel" src="app.jsx"></script>
+  <script type="text/babel">
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
   </script>
-
   <script>
+    // Remove the splash as soon as React has actually painted something into
+    // #root — not on a fixed timer — so it never disappears too early (blank
+    // gap) or lingers too long. Falls back to a hard timeout just in case.
     (function () {
       const splash = document.getElementById("splash");
       const rootEl = document.getElementById("root");
@@ -138,7 +111,7 @@
         }
       });
       observer.observe(rootEl, { childList: true, subtree: true });
-      setTimeout(hideSplash, 6000);
+      setTimeout(hideSplash, 6000); // safety fallback
     })();
 
     if ("serviceWorker" in navigator) {
