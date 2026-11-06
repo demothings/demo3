@@ -733,6 +733,31 @@ async function getSignedPhotoUrl(path, expiresIn = 3600) {
   return `${SUPABASE_URL}/storage/v1${data.signedURL}`;
 }
 
+// Round badge showing a tenant's profile photo; falls back to its children
+// (the initial) when there is no photo. Signed URLs are cached so each photo
+// is requested once per session.
+const photoUrlCache = new Map();
+function TenantAvatar({ path, style, children }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    if (!path) { setUrl(null); return; }
+    const hit = photoUrlCache.get(path);
+    if (hit && hit.exp > Date.now()) { setUrl(hit.url); return; }
+    let live = true;
+    getSignedPhotoUrl(path)
+      .then(u => { photoUrlCache.set(path, { url: u, exp: Date.now() + 50 * 60 * 1000 }); if (live) setUrl(u); })
+      .catch(() => { if (live) setUrl(null); });
+    return () => { live = false; };
+  }, [path]);
+  return (
+    <div style={{ ...style, overflow: "hidden" }}>
+      {url
+        ? <img src={url} alt="" onError={() => setUrl(null)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        : children}
+    </div>
+  );
+}
+
 async function loadHistory() {
   const rows = await sbFetch("/tenant_history?select=*&order=archived_at.desc&limit=10000");
   return rows || [];
@@ -2076,7 +2101,7 @@ function RentReportsPanel({ paymentsLog, loading, reportYear, setReportYear }) {
 // ── RENT DUE PAGE ─────────────────────────────────────────────
 // Shared receipt PDF generator — used both for a freshly-marked-paid tenant
 // and for reprinting any past payment from the permanent ledger in Reports.
-function generateReceiptPDF({ name, phone, floorLabel, roomNumber, paidDate, amount, mode, receiptNo, cycleNote, note = "", docTitle = "Rent Receipt", amountLabel = "AMOUNT PAID", fileTag = "", periodBadge = null }) {
+function generateReceiptPDF({ name, phone, floorLabel, roomNumber, paidDate, amount, mode, receiptNo, cycleNote, note = "", docTitle = "Rent Receipt", amountLabel = "AMOUNT PAID", fileTag = "", periodBadge = null, paidTill = null }) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { alert("PDF library still loading — try again in a moment."); return; }
 
@@ -2104,6 +2129,7 @@ function generateReceiptPDF({ name, phone, floorLabel, roomNumber, paidDate, amo
     ["Mode", mode || "-"],
     ["Cycle", cycleNote || "-"],
   ];
+  if (paidTill) rows.push(["Paid till", paidTill]);
   if (note && note.trim()) rows.push(["Notes", note.trim()]);
 
   // Measure with a scratch doc (jsPDF needs an instance to measure text,
@@ -2676,6 +2702,7 @@ function RentPage({ rooms, setRooms, today }) {
       mode: t.rentPaymentMode,
       receiptNo,
       periodBadge,
+      paidTill: periodBounds ? fmtDateIST(periodBounds.periodEnd, { day: "numeric", month: "long", year: "numeric" }) : null,
       cycleNote: isDaily
         ? `Per Day · ${fmtDateIST(paidDate, { day: "numeric", month: "short", year: "numeric" })}`
         : periodLabel
@@ -2930,9 +2957,9 @@ function RentPage({ rooms, setRooms, today }) {
               return (
                 <div key={i} style={{ background: isPaidToday ? "#EBF3EC" : "#fff", border: `1.5px solid ${isCheckedOut ? "#DCD5C6" : isPaidToday ? "#A8CDB0" : "#E3B45C"}`, borderLeft: `4px solid ${isCheckedOut ? "#9C9585" : isPaidToday ? "#3C8F5C" : "#C1861F"}`, borderRadius: 12, padding: "12px 14px", opacity: isCheckedOut ? 0.6 : 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: "50%", background: isPaidToday ? "#E4EFE6" : "#FBF3E1", border: `2px solid ${isPaidToday ? "#A8CDB0" : "#E3B45C"}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: isPaidToday ? "#2F6B44" : "#A8701A", flexShrink: 0 }}>
+                    <TenantAvatar path={t.profilePicPath} style={{ width: 38, height: 38, borderRadius: "50%", background: isPaidToday ? "#E4EFE6" : "#FBF3E1", border: `2px solid ${isPaidToday ? "#A8CDB0" : "#E3B45C"}`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: isPaidToday ? "#2F6B44" : "#A8701A", flexShrink: 0 }}>
                       {isPaidToday ? "✅" : t.name.charAt(0).toUpperCase()}
-                    </div>
+                    </TenantAvatar>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{t.name}</div>
                       <div style={{ fontSize: 11, color: "#6B6459" }}>Floor {t.floor} · Room {t.roomNumber} · Bed {t.bed}</div>
@@ -3034,9 +3061,9 @@ function RentPage({ rooms, setRooms, today }) {
                 : `on the ${ordinal(t.rentStatus.dueDay)}`;
               return (
                 <div key={idx} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: `1.5px solid ${color}44`, borderLeft: `4px solid ${color}`, borderRadius: 12, padding: "12px 14px" }}>
-                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, color, flexShrink: 0 }}>
+                  <TenantAvatar path={t.profilePicPath} style={{ width: 38, height: 38, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, color, flexShrink: 0 }}>
                     {t.name.charAt(0).toUpperCase()}
-                  </div>
+                  </TenantAvatar>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
                       {t.name}
@@ -3094,9 +3121,9 @@ function RentPage({ rooms, setRooms, today }) {
                   <div key={idx} style={{ background: bgColor, border: `1.5px solid ${borderColor}44`, borderLeft: `4px solid ${borderColor}`, borderRadius: 14, padding: "14px 16px" }}>
                     {/* Name row with rent amount badge */}
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: "50%", background: isPaid ? "#E4EFE6" : isSnoozed ? "#EDE3F1" : rs.bg, border: `2px solid ${borderColor}66`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 17, color: borderColor, flexShrink: 0 }}>
+                      <TenantAvatar path={t.profilePicPath} style={{ width: 44, height: 44, borderRadius: "50%", background: isPaid ? "#E4EFE6" : isSnoozed ? "#EDE3F1" : rs.bg, border: `2px solid ${borderColor}66`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 17, color: borderColor, flexShrink: 0 }}>
                         {isPaid ? "✅" : isSnoozed ? "⏭️" : t.name.charAt(0).toUpperCase()}
-                      </div>
+                      </TenantAvatar>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 2 }}>
                           <span style={{ fontWeight: 800, fontSize: 16 }}>{t.name}</span>
@@ -4456,7 +4483,7 @@ function RoomsPage({ rooms, setRooms, activeFloor, setActiveFloor, onSaveRoom, i
     }
     updateTenant(i, "_uploading", { ...(t._uploading || {}), [slotKey]: true });
     try {
-      const toUpload = await compressImageFile(file); // no-op for PDFs
+      const toUpload = await compressImageFile(file, slotKey === "profilePicPath" ? 400 : 1800); // no-op for PDFs
       const path = await uploadTenantPhoto(folderKey, slotKey, toUpload);
       updateTenant(i, slotKey, path);
       if (oldPath && oldPath !== path) deleteTenantPhoto(oldPath);
