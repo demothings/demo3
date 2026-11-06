@@ -2802,6 +2802,63 @@ function RentPage({ rooms, setRooms, today }) {
       )
     : countdownAll;
 
+  // ── Default Rent Due view: one list grouped by urgency ──
+  const rq = searchQuery.trim().toLowerCase();
+  const inSearch = t => !rq || t.name.toLowerCase().includes(rq) || (t.phone || "").includes(rq) || String(t.roomNumber).includes(rq);
+  const rentList = visibleCyclic.filter(inSearch);
+  const unpaid = type => rentList.filter(t => !t.isPaid && t.rentStatus.type === type);
+  const paidNow = rentList.filter(t => t.isPaid);
+  const toCollect = [...unpaid("overdue"), ...unpaid("due_today")].reduce((sum, t) => sum + (Number(t.rentAmount) || 0), 0);
+  const money = n => `₹${Number(n).toLocaleString("en-IN")}`;
+  const openPaid = t => { setPaymentMode("Cash"); setPaymentModeOther(""); setPaymentNote(""); setPaidModal(t); };
+  const linkBtn = { background: "none", border: "none", padding: "4px 0 0", fontSize: 12, fontWeight: 600, color: "#3A41A0", cursor: "pointer" };
+
+  function renderRentRow(t, i) {
+    const rs = t.rentStatus, busy = busyKey === tKey(t);
+    const urgent = rs.type === "overdue" || rs.type === "due_today";
+    const paidTill = t.isPaid ? cyclePeriodBounds(t, t.rentPaidOn) : null;
+    const status = t.isPaid
+      ? (paidTill ? `Paid till ${fmtDateIST(paidTill.periodEnd, { day: "numeric", month: "short" })}` : "Paid")
+      : rs.label;
+    return (
+      <div key={tKey(t)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderTop: i ? "1px solid #DFE2F0" : "none" }}>
+        <TenantAvatar path={t.profilePicPath} style={{ width: 46, height: 46, borderRadius: "50%", background: "#E9EBFA", color: "#3A41A0", fontWeight: 800, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {t.name.charAt(0).toUpperCase()}
+        </TenantAvatar>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+          <div style={{ fontSize: 12, color: "#5C6180" }}>Room {t.roomNumber} · Bed {t.bed}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.isPaid ? "#2F6B44" : urgent ? "#A83D2A" : "#5C6180" }}>{status}</div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          {t.rentAmount && <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}>{money(t.rentAmount)}</div>}
+          {t.isPaid ? (
+            <>
+              <button disabled={busy} onClick={() => printReceipt(t)} style={linkBtn}>Receipt</button>
+              <button disabled={busy} onClick={() => { setPaymentMode(t.rentPaymentMode || "Cash"); setPaymentModeOther(""); setPaymentNote(""); setAddCycleModal(t); }} style={{ ...linkBtn, marginLeft: 10 }}>Add cycle</button>
+            </>
+          ) : (
+            <>
+              <button disabled={busy} onClick={() => openPaid(t)} style={{ marginTop: 4, padding: "7px 14px", borderRadius: 99, border: "none", background: urgent ? "#A83D2A" : "#3A41A0", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Mark paid</button>
+              <div><button disabled={busy} onClick={() => { setSnoozeDays(7); setSnoozeModal(t); }} style={linkBtn}>Snooze</button></div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+  function rentSection(title, list, color) {
+    if (list.length === 0) return null;
+    return (
+      <div key={title} style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", fontWeight: 700, fontSize: 14, color }}>
+          <span>{title}</span><span style={{ color: "#7F85A6", fontWeight: 600 }}>{list.length}</span>
+        </div>
+        <div style={{ background: "#fff", border: "1px solid #DFE2F0", borderRadius: 16, overflow: "hidden" }}>{list.map(renderRentRow)}</div>
+      </div>
+    );
+  }
+
   let shown = [];
   // "All" no longer appends paidList separately — every paid tenant already
   // shows up through Due Soon/Upcoming above (paid tenants can only ever be
@@ -3080,6 +3137,27 @@ function RentPage({ rooms, setRooms, today }) {
               );
             })}
           </div>
+        )
+      ) : filter === "all" ? (
+        rentList.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 0", color: "#7F85A6", fontWeight: 600 }}>No tenants found</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "4px 4px 16px" }}>
+              <span style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 26, color: toCollect > 0 ? "#A83D2A" : "#2F6B44" }}>{money(toCollect)}</span>
+              <span style={{ fontSize: 13, color: "#5C6180" }}>{toCollect > 0 ? `to collect · ${unpaid("overdue").length} overdue` : "nothing overdue"}</span>
+            </div>
+            {rentSection("Overdue", unpaid("overdue"), "#A83D2A")}
+            {rentSection("Due today", unpaid("due_today"), "#A83D2A")}
+            {rentSection("This week", unpaid("due_soon"), "#A9720F")}
+            {rentSection("Later", unpaid("ok"), "#5C6180")}
+            {paidNow.length > 0 && (
+              <details>
+                <summary style={{ cursor: "pointer", padding: "0 4px 8px", fontWeight: 700, fontSize: 14, color: "#2F6B44" }}>Paid ({paidNow.length})</summary>
+                <div style={{ background: "#fff", border: "1px solid #DFE2F0", borderRadius: 16, overflow: "hidden" }}>{paidNow.map(renderRentRow)}</div>
+              </details>
+            )}
+          </>
         )
       ) : (
       <>
