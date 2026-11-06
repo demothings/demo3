@@ -2308,7 +2308,7 @@ function RentPage({ rooms, setRooms, today }) {
   useEffect(() => {
     if (paymentsLog === null) {
       setLoadingReports(true);
-      loadPayments().then(rows => { setPaymentsLog(rows); setLoadingReports(false); });
+      loadPayments().then(rows => { setPaymentsLog(rows); setLoadingReports(false); }).catch(() => setLoadingReports(false));
     }
   }, [showReports, showHistorySearch, filter]);
 
@@ -2548,7 +2548,7 @@ function RentPage({ rooms, setRooms, today }) {
     // one — never wipe the whole stack back to "not paid at all". This
     // makes "Undo Paid" behave identically to the per-cycle Undo button:
     // always exactly one step back.
-    if (paymentsLog === null) { alert("Payment records are still loading. Try Undo again in a moment."); return; }
+    if (paymentsLog === null) { alert("Payment records are not loaded yet. Check your connection, reopen this page, then try Undo again."); return; }
     const cycles = tenantCycleChain(t);
     if (cycles.length > 0) {
       await undoCycleEntry(t, cycles[cycles.length - 1].entry);
@@ -2836,7 +2836,7 @@ function RentPage({ rooms, setRooms, today }) {
           <div style={{ fontSize: 12, fontWeight: 600, color: t.isPaid ? "#2F6B44" : urgent ? "#A83D2A" : "#5C6180" }}>{status}</div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
-          {t.rentAmount && <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}>{money(t.rentAmount)}</div>}
+          {t.rentAmount ? <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}>{money(t.rentAmount)}</div> : null}
           {t.isPaid ? (
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <button disabled={busy} onClick={() => printReceipt(t)} style={linkBtn}>Receipt</button>
