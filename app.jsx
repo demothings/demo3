@@ -2306,7 +2306,7 @@ function RentPage({ rooms, setRooms, today }) {
   const [historySearch, setHistorySearch] = useState("");
 
   useEffect(() => {
-    if ((showReports || showHistorySearch || filter === "paid") && paymentsLog === null) {
+    if (paymentsLog === null) {
       setLoadingReports(true);
       loadPayments().then(rows => { setPaymentsLog(rows); setLoadingReports(false); });
     }
@@ -2381,6 +2381,7 @@ function RentPage({ rooms, setRooms, today }) {
         prev_rent_paid_on: t.rentPaidOn || null,
       });
     } catch (e) { console.warn("Payment log failed (table may not exist yet):", e); }
+    loadPayments().then(setPaymentsLog).catch(() => {});
     return { nowIso, receiptNo, finalMode };
   }
   // Advance an already-PAID tenant's paid-through date by one more cycle —
@@ -2461,6 +2462,7 @@ function RentPage({ rooms, setRooms, today }) {
         prev_rent_paid_on: t.rentPaidOn || null,
       });
     } catch (e) { console.warn("Payment log failed (table may not exist yet):", e); }
+    loadPayments().then(setPaymentsLog).catch(() => {});
     return { nowIso, nextPaidOnIso, receiptNo, finalMode };
   }
   // Inverse of the forward step in addCycle(): given a due-day-aligned
@@ -2546,6 +2548,7 @@ function RentPage({ rooms, setRooms, today }) {
     // one — never wipe the whole stack back to "not paid at all". This
     // makes "Undo Paid" behave identically to the per-cycle Undo button:
     // always exactly one step back.
+    if (paymentsLog === null) { alert("Payment records are still loading. Try Undo again in a moment."); return; }
     const cycles = tenantCycleChain(t);
     if (cycles.length > 0) {
       await undoCycleEntry(t, cycles[cycles.length - 1].entry);
@@ -3631,7 +3634,7 @@ function RentPage({ rooms, setRooms, today }) {
               {migrationMissing ? (
                 <>This tenant has <b>{tenantRows.length} payments</b> on record that aren't tagged yet. Clicking below will first auto-repair those old rows, then undo only the most recent cycle — the rest stay as they are. If the repair fails, nothing will be changed and you'll see exactly why.</>
               ) : hasCycles ? (
-                <>This removes only the <b>last</b> cycle added for <b>{undoPaidConfirm.name}</b>{restoreDate ? <> — their paid-through date rolls back to <b>{fmtDateIST(new Date(restoreDate), { day: "numeric", month: "short", year: "numeric" })}</b></> : ""}. The {cycles.length - 1} cycle{cycles.length - 1 !== 1 ? "s" : ""} before it stay exactly as they are.</>
+                <>This removes only the <b>last</b> cycle added for <b>{undoPaidConfirm.name}</b>{restoreDate ? <> — their paid-through date rolls back to <b>{fmtDateIST(new Date(restoreDate), { day: "numeric", month: "short", year: "numeric" })}</b></> : ""}. {cycles.length > 1 ? `The ${cycles.length - 1} earlier cycle${cycles.length > 2 ? "s" : ""} stay exactly as they are.` : "Their original payment stays as it is."}</>
               ) : (
                 <><b>{undoPaidConfirm.name}</b> will show up as due again, and their "Paid" status for this cycle will be removed. This does not delete their permanent payment record in Reports.</>
               )}
