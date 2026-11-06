@@ -35,6 +35,16 @@ if (typeof document !== "undefined") {
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #C6CAE0; border-radius: 99px; }
     ::-webkit-scrollbar-thumb:hover { background: #BF7408; }
+    html { -webkit-text-size-adjust: 100%; }
+    /* 100dvh tracks the visible screen as phone browser bars show and hide. */
+    [style*="min-height: 100vh"] { min-height: 100dvh !important; }
+    /* 16px inputs stop iPhones zooming in when a field is tapped. */
+    @media (pointer: coarse) { input, select, textarea { font-size: 16px !important; } }
+    /* Pop-up windows scroll instead of being cut off on short screens (phones held sideways). */
+    [style*="position: fixed"][style*="inset: 0"] { overflow-y: auto; align-items: safe center !important; }
+    @media (orientation: landscape) and (max-height: 480px) {
+      [style*="position: fixed"][style*="inset: 0"] { padding: 8px !important; }
+    }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
     }
@@ -1759,6 +1769,14 @@ function HomePage({ rooms, setPage, setActiveFloor, today, isManager = true, set
 }
 
 // ── TENANT SEARCH PAGE ────────────────────────────────────────
+// Every word typed must appear in the tenant's name, phone, room, floor, room
+// label or workplace, in any order ("priya 204" or "floor 2 infosys" both work).
+function tenantMatches(t, query) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = [t.name, t.phone, t.roomNumber, t.floor, FLOOR_LABELS[t.floor], t.roomLabel, t.occupationPlace].join(" ").toLowerCase();
+  return words.every(w => hay.includes(w));
+}
 function TenantSearchPage({ rooms, setPage, setActiveFloor, isManager = true, isAdmin = false }) {
   const [query, setQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
@@ -1767,14 +1785,7 @@ function TenantSearchPage({ rooms, setPage, setActiveFloor, isManager = true, is
   const companies = Array.from(new Set(allTenants.map(t => (t.occupationPlace || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
   const results = allTenants.filter(t => {
-    const matchesQuery = query.trim().length === 0 || (
-      t.name.toLowerCase().includes(query.toLowerCase()) ||
-      (t.phone || "").includes(query) ||
-      String(t.roomNumber).includes(query) ||
-      String(t.floor).includes(query) ||
-      (t.roomLabel || "").toLowerCase().includes(query.toLowerCase()) ||
-      (t.occupationPlace || "").toLowerCase().includes(query.toLowerCase())
-    );
+    const matchesQuery = tenantMatches(t, query);
     const matchesCompany = companyFilter === "all" || t.occupationPlace === companyFilter;
     return matchesQuery && matchesCompany;
   });
@@ -2793,25 +2804,16 @@ function RentPage({ rooms, setRooms, today }) {
     }
     return { ...t, daysToNext, countdownLabel };
   }).sort((a, b) => a.daysToNext - b.daysToNext);
-  const countdownShown = searchQuery.trim()
-    ? countdownAll.filter(t =>
-        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.phone || "").includes(searchQuery) ||
-        String(t.roomNumber).includes(searchQuery) ||
-        String(t.floor).includes(searchQuery)
-      )
-    : countdownAll;
+  const countdownShown = countdownAll.filter(t => tenantMatches(t, searchQuery));
 
   // ── Default Rent Due view: one list grouped by urgency ──
-  const rq = searchQuery.trim().toLowerCase();
-  const inSearch = t => !rq || t.name.toLowerCase().includes(rq) || (t.phone || "").includes(rq) || String(t.roomNumber).includes(rq);
-  const rentList = visibleCyclic.filter(inSearch);
+  const rentList = visibleCyclic.filter(t => tenantMatches(t, searchQuery));
   const unpaid = type => rentList.filter(t => !t.isPaid && t.rentStatus.type === type);
   const paidNow = rentList.filter(t => t.isPaid);
   const toCollect = [...unpaid("overdue"), ...unpaid("due_today")].reduce((sum, t) => sum + (Number(t.rentAmount) || 0), 0);
   const money = n => `₹${Number(n).toLocaleString("en-IN")}`;
   const openPaid = t => { setPaymentMode("Cash"); setPaymentModeOther(""); setPaymentNote(""); setPaidModal(t); };
-  const linkBtn = { background: "none", border: "none", padding: "4px 0 0", fontSize: 12, fontWeight: 600, color: "#3A41A0", cursor: "pointer" };
+  const linkBtn = { background: "none", border: "none", padding: "8px 0 0", fontSize: 13, fontWeight: 600, color: "#3A41A0", cursor: "pointer" };
 
   function renderRentRow(t, i) {
     const rs = t.rentStatus, busy = busyKey === tKey(t);
@@ -2833,13 +2835,14 @@ function RentPage({ rooms, setRooms, today }) {
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           {t.rentAmount && <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}>{money(t.rentAmount)}</div>}
           {t.isPaid ? (
-            <>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <button disabled={busy} onClick={() => printReceipt(t)} style={linkBtn}>Receipt</button>
-              <button disabled={busy} onClick={() => { setPaymentMode(t.rentPaymentMode || "Cash"); setPaymentModeOther(""); setPaymentNote(""); setAddCycleModal(t); }} style={{ ...linkBtn, marginLeft: 10 }}>Add cycle</button>
-            </>
+              <button disabled={busy} onClick={() => { setPaymentMode(t.rentPaymentMode || "Cash"); setPaymentModeOther(""); setPaymentNote(""); setAddCycleModal(t); }} style={linkBtn}>Add cycle</button>
+              <button disabled={busy} onClick={() => setUndoPaidConfirm(t)} style={{ ...linkBtn, color: "#A83D2A" }}>Undo</button>
+            </div>
           ) : (
             <>
-              <button disabled={busy} onClick={() => openPaid(t)} style={{ marginTop: 4, padding: "7px 14px", borderRadius: 99, border: "none", background: urgent ? "#A83D2A" : "#3A41A0", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Mark paid</button>
+              <button disabled={busy} onClick={() => openPaid(t)} style={{ marginTop: 4, padding: "10px 16px", borderRadius: 99, border: "none", background: urgent ? "#A83D2A" : "#3A41A0", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Mark paid</button>
               <div><button disabled={busy} onClick={() => { setSnoozeDays(7); setSnoozeModal(t); }} style={linkBtn}>Snooze</button></div>
             </>
           )}
@@ -2872,15 +2875,7 @@ function RentPage({ rooms, setRooms, today }) {
   else if (filter === "paid") shown = paidList;
   else if (filter === "snoozed") shown = snoozedList;
 
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase();
-    shown = shown.filter(t =>
-      t.name.toLowerCase().includes(q) ||
-      (t.phone || "").includes(searchQuery) ||
-      String(t.roomNumber).includes(searchQuery) ||
-      String(t.floor).includes(searchQuery)
-    );
-  }
+  shown = shown.filter(t => tenantMatches(t, searchQuery));
 
   // Group by a stable key — monthly tenants group by day-of-month (they
   // recur on the same date every month), 15-day tenants group by their
@@ -5564,6 +5559,7 @@ function HistoryPage() {
   const [dateTo, setDateTo] = useState("");
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => { setVisibleCount(30); }, [query, filterFloor]);
 
@@ -5574,15 +5570,8 @@ function HistoryPage() {
   }, []);
 
   const filtered = history.filter(t => {
-    const matchQ = !query ||
-      (t.name || "").toLowerCase().includes(query.toLowerCase()) ||
-      (t.phone || "").includes(query) ||
-      (t.aadhar_id || "").includes(query) ||
-      (t.father_name || "").toLowerCase().includes(query.toLowerCase()) ||
-      (t.guardian_name || "").toLowerCase().includes(query.toLowerCase()) ||
-      (t.city || "").toLowerCase().includes(query.toLowerCase()) ||
-      (t.occupation_place || "").toLowerCase().includes(query.toLowerCase()) ||
-      String(t.room_number).includes(query);
+    const hay = [t.name, t.phone, t.aadhar_id, t.father_name, t.guardian_name, t.city, t.occupation_place, t.room_number].join(" ").toLowerCase();
+    const matchQ = query.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w));
     const matchF = filterFloor === "all" || String(t.floor) === filterFloor;
     return matchQ && matchF;
   });
@@ -5626,6 +5615,60 @@ function HistoryPage() {
     if (!dateFrom || !dateTo) { alert("Please select both From and To dates"); return; }
     if (dateFiltered.length === 0) { alert("No records found in this date range"); return; }
     downloadCSV(buildCSV(dateFiltered), `${dateFrom}-to-${dateTo}`);
+  }
+
+  function renderRecord(t) {
+    return (
+            <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1.5px solid #DFE2F0", display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#5C6180", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, flexShrink: 0, marginTop: 2 }}>
+                {(t.name||"?").charAt(0).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{t.name}</div>
+                <div style={{ fontSize: 12, color: "#5C6180", marginTop: 2 }}>
+                  Floor {t.floor} · Room {t.room_number} · Bed {(t.bed_index||0)+1}
+                  {t.aadhar_id ? <span style={{ background: "#E9EBFA", color: "#3A41A0", borderRadius: 4, padding: "1px 6px", marginLeft: 6, fontSize: 10, fontWeight: 700 }}>🪪 {t.aadhar_id}</span> : ""}
+                </div>
+                {t.father_name && (
+                  <div style={{ fontSize: 11, color: "#2B2F52", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span>👨 <b>Father:</b> {t.father_name}</span>
+                    {t.father_phone && <span style={{ color: "#5C6180" }}>{t.father_phone}</span>}
+                    {t.father_phone && <ContactButtons phone={t.father_phone} size="small" />}
+                  </div>
+                )}
+                {(t.city || t.address) && <div style={{ fontSize: 11, color: "#5C6180", marginTop: 3 }}>📍 {[t.city, t.address].filter(Boolean).join(", ")}</div>}
+                {t.occupation_place && <div style={{ fontSize: 11, color: "#5C6180", marginTop: 2 }}>💼 {t.occupation === "job" ? "Works at" : t.occupation === "college" ? "Studies at" : "At"}: {t.occupation_place}{t.occupation_id ? ` · ID: ${t.occupation_id}` : ""}</div>}
+                {t.reason_to_stay && <div style={{ fontSize: 11, color: "#7F85A6", marginTop: 2, fontStyle: "italic" }}>"{t.reason_to_stay}"</div>}
+                {t.guardian_name && (
+                  <div style={{ fontSize: 11, color: "#2B2F52", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span>🛡️ <b>Guardian:</b> {t.guardian_name}</span>
+                    {t.guardian_phone && <span style={{ color: "#5C6180" }}>{t.guardian_phone}</span>}
+                    {t.guardian_phone && <ContactButtons phone={t.guardian_phone} size="small" />}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: "#7F85A6", marginTop: 5, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {t.admission_date && <span>📅 Joined: {fmt(t.admission_date)}</span>}
+                  {t.checkout_date && <span>🚪 Left: {fmt(t.checkout_date)}</span>}
+                  {t.archived_at && <span>🗃️ Archived: {fmtDateIST(new Date(t.archived_at))}</span>}
+                </div>
+                {t.documents_pdf_url ? (
+                  <a href={t.documents_pdf_url} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#3A41A0", background: "#E9EBFA", borderRadius: 6, padding: "3px 8px", marginTop: 5, textDecoration: "none", fontWeight: 600 }}>
+                    📄 View photos &amp; form (PDF)
+                  </a>
+                ) : (t.profile_pic_path || t.aadhar_front_path || t.aadhar_back_path || t.form_path) ? (
+                  <div style={{ fontSize: 10, color: "#7F85A6", marginTop: 5 }}>📎 Photos archiving…</div>
+                ) : null}
+                <PastTenantMoneyPanel t={t} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+                <ContactButtons phone={t.phone} size="small" />
+                <div style={{ fontSize: 10, background: "#EEF0F9", color: "#5C6180", padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
+                  {t.billing_type === "daily" ? "☀️ Per Day" : t.billing_type === "15day" ? "🔁 15-Day" : "📅 Monthly"}
+                </div>
+              </div>
+            </div>
+    );
   }
 
   return (
@@ -5713,9 +5756,9 @@ function HistoryPage() {
         ))}
       </div>
 
-      <div style={{ fontSize: 12, color: "#7F85A6", marginBottom: 14 }}>
+      {!selected && <div style={{ fontSize: 12, color: "#7F85A6", marginBottom: 14 }}>
         Showing {Math.min(visibleCount, filtered.length)} of {filtered.length} records{query ? ` matching "${query}"` : ""}
-      </div>
+      </div>}
 
       {/* Records */}
       {loading ? (
@@ -5728,62 +5771,26 @@ function HistoryPage() {
           <div style={{ fontSize: 16, fontWeight: 600 }}>No history yet</div>
           <div style={{ fontSize: 13, marginTop: 4 }}>Past tenants appear here automatically when you replace or clear them from a room</div>
         </div>
+      ) : selected ? (
+        <div>
+          <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", padding: "0 0 12px", fontSize: 14, fontWeight: 700, color: "#3A41A0", cursor: "pointer" }}>‹ Back to results</button>
+          {renderRecord(selected)}
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.slice(0, visibleCount).map((t, i) => (
-            <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1.5px solid #DFE2F0", display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#5C6180", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, flexShrink: 0, marginTop: 2 }}>
-                {(t.name||"?").charAt(0).toUpperCase()}
-              </div>
+            <button key={i} onClick={() => setSelected(t)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "#fff", border: "1.5px solid #DFE2F0", borderRadius: 12, padding: "12px 14px", cursor: "pointer", color: "inherit" }}>
+              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#E9EBFA", color: "#3A41A0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, flexShrink: 0 }}>{(t.name || "?").charAt(0).toUpperCase()}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{t.name}</div>
-                <div style={{ fontSize: 12, color: "#5C6180", marginTop: 2 }}>
-                  Floor {t.floor} · Room {t.room_number} · Bed {(t.bed_index||0)+1}
-                  {t.aadhar_id ? <span style={{ background: "#E9EBFA", color: "#3A41A0", borderRadius: 4, padding: "1px 6px", marginLeft: 6, fontSize: 10, fontWeight: 700 }}>🪪 {t.aadhar_id}</span> : ""}
-                </div>
-                {t.father_name && (
-                  <div style={{ fontSize: 11, color: "#2B2F52", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span>👨 <b>Father:</b> {t.father_name}</span>
-                    {t.father_phone && <span style={{ color: "#5C6180" }}>{t.father_phone}</span>}
-                    {t.father_phone && <ContactButtons phone={t.father_phone} size="small" />}
-                  </div>
-                )}
-                {(t.city || t.address) && <div style={{ fontSize: 11, color: "#5C6180", marginTop: 3 }}>📍 {[t.city, t.address].filter(Boolean).join(", ")}</div>}
-                {t.occupation_place && <div style={{ fontSize: 11, color: "#5C6180", marginTop: 2 }}>💼 {t.occupation === "job" ? "Works at" : t.occupation === "college" ? "Studies at" : "At"}: {t.occupation_place}{t.occupation_id ? ` · ID: ${t.occupation_id}` : ""}</div>}
-                {t.reason_to_stay && <div style={{ fontSize: 11, color: "#7F85A6", marginTop: 2, fontStyle: "italic" }}>"{t.reason_to_stay}"</div>}
-                {t.guardian_name && (
-                  <div style={{ fontSize: 11, color: "#2B2F52", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span>🛡️ <b>Guardian:</b> {t.guardian_name}</span>
-                    {t.guardian_phone && <span style={{ color: "#5C6180" }}>{t.guardian_phone}</span>}
-                    {t.guardian_phone && <ContactButtons phone={t.guardian_phone} size="small" />}
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: "#7F85A6", marginTop: 5, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {t.admission_date && <span>📅 Joined: {fmt(t.admission_date)}</span>}
-                  {t.checkout_date && <span>🚪 Left: {fmt(t.checkout_date)}</span>}
-                  {t.archived_at && <span>🗃️ Archived: {fmtDateIST(new Date(t.archived_at))}</span>}
-                </div>
-                {t.documents_pdf_url ? (
-                  <a href={t.documents_pdf_url} target="_blank" rel="noopener noreferrer"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#3A41A0", background: "#E9EBFA", borderRadius: 6, padding: "3px 8px", marginTop: 5, textDecoration: "none", fontWeight: 600 }}>
-                    📄 View photos &amp; form (PDF)
-                  </a>
-                ) : (t.profile_pic_path || t.aadhar_front_path || t.aadhar_back_path || t.form_path) ? (
-                  <div style={{ fontSize: 10, color: "#7F85A6", marginTop: 5 }}>📎 Photos archiving…</div>
-                ) : null}
-                <PastTenantMoneyPanel t={t} />
+                <div style={{ fontSize: 12, color: "#5C6180" }}>Floor {t.floor} · Room {t.room_number}{t.checkout_date ? ` · Left ${fmt(t.checkout_date)}` : ""}</div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-                <ContactButtons phone={t.phone} size="small" />
-                <div style={{ fontSize: 10, background: "#EEF0F9", color: "#5C6180", padding: "2px 8px", borderRadius: 99, fontWeight: 600 }}>
-                  {t.billing_type === "daily" ? "☀️ Per Day" : t.billing_type === "15day" ? "🔁 15-Day" : "📅 Monthly"}
-                </div>
-              </div>
-            </div>
+              <span style={{ color: "#7F85A6", fontSize: 18 }}>›</span>
+            </button>
           ))}
         </div>
       )}
-      {!loading && visibleCount < filtered.length && (
+      {!loading && !selected && visibleCount < filtered.length && (
         <div style={{ textAlign: "center", marginTop: 16 }}>
           <button onClick={() => setVisibleCount(v => v + 30)} style={{ padding: "10px 22px", borderRadius: 10, border: "1.5px solid #DFE2F0", background: "#fff", color: "#2B2F52", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
             Load 30 more ({filtered.length - visibleCount} remaining)
@@ -6007,7 +6014,7 @@ function App() {
 
   // Dark mode preference, persisted across sessions.
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem("turiya_theme") || "light"; } catch (e) { return "light"; }
+    try { return localStorage.getItem("turiya_theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) { return "light"; }
   });
   useEffect(() => {
     try { localStorage.setItem("turiya_theme", theme); } catch (e) {}
@@ -6160,11 +6167,15 @@ function App() {
           into one that's positioned relative to a container instead of the
           real screen, so nothing drifts or needs scrolling to reach. */}
       {theme === "dark" && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 99999, pointerEvents: "none",
-          backdropFilter: "invert(1) hue-rotate(180deg)",
-          WebkitBackdropFilter: "invert(1) hue-rotate(180deg)",
-        }} />
+        <>
+          {/* Photos are flipped back (the exact inverse of the layer below) so faces keep natural colors. */}
+          <style>{"img { filter: contrast(1.111) hue-rotate(180deg) invert(1); }"}</style>
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 99999, pointerEvents: "none",
+            backdropFilter: "invert(1) hue-rotate(180deg) contrast(0.9)",
+            WebkitBackdropFilter: "invert(1) hue-rotate(180deg) contrast(0.9)",
+          }} />
+        </>
       )}
       {saving && (
         <div style={{ position: "fixed", bottom: 80, right: 16, background: "#1F2350", color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: "0 4px 16px #0004" }}>
